@@ -1,4 +1,3 @@
-require 'debugger'
 module Skylight
   class Middleware
 
