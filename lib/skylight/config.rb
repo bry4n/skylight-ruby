@@ -19,6 +19,7 @@ module Skylight
 
     # Map environment variable keys with Skylight configuration keys
     ENV_TO_KEY = {
+      'RAILS_CONFIG'            => :'rails_config',
       'ROOT'                    => :'root',
       'LOG_FILE'                => :'log_file',
       'LOG_LEVEL'               => :'log_level',
@@ -281,6 +282,14 @@ authentication: #{self[:authentication]}
     # ===== Helpers =====
     #
     #
+
+    def rails_config
+      rails_app.config
+    end
+
+    def rails_app
+      get('rails_app')
+    end
 
     def worker
       Worker::Builder.new(self)

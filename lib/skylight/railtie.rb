@@ -1,5 +1,6 @@
 require 'skylight'
 require 'rails'
+require 'skylight/rails/action_controller'
 
 module Skylight
   class Railtie < Rails::Railtie
@@ -14,12 +15,16 @@ module Skylight
     # The probes to load
     config.skylight.probes = []
 
+    # Exclude controllers (Don't send data)
+    config.skylight.exclusions = []
+
     initializer 'skylight.configure' do |app|
       if activate?
         load_probes
 
         if config = load_skylight_config(app)
           if Instrumenter.start!(config)
+            config['rails_app'] = app
             app.middleware.insert 0, Middleware
             puts "[SKYLIGHT] [#{Skylight::VERSION}] Skylight agent enabled"
           end

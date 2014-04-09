@@ -2,6 +2,7 @@ require 'thread'
 require 'set'
 require 'base64'
 require 'strscan'
+require 'debugger'
 
 module Skylight
   class Instrumenter
@@ -91,6 +92,7 @@ module Skylight
       @config.gc.enable
       @worker.spawn
       @subscriber.register!
+
 
       self
 

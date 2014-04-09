@@ -73,7 +73,6 @@ module Skylight
 
       def post_report
         report = build_report
-
         # Send the report
         t { fmt "reporting internal metrics; payload=%s", report.inspect }
 
