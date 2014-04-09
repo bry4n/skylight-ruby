@@ -7,8 +7,8 @@ module Skylight
       PAYLOAD_KEYS = %w[ controller action params format method path ].map(&:to_sym).freeze
 
       def normalize(trace, name, payload)
-        unless excluded?(trace, payload)
-          trace.endpoint = controller_action(payload)
+        endpoint = trace.endpoint = controller_action(payload)
+        unless excluded?(endpoint)
           [ CAT, trace.endpoint, nil, normalize_payload(payload) ]
         else
           :skip
@@ -33,11 +33,9 @@ module Skylight
         normalized
       end
 
-      def excluded?(trace, payload)
-        debugger
+      def excluded?(endpoint)
         return false unless rails_config
-        name = controller_action(payload)
-        exclusions.include?(name)
+        exclusions.include?(endpoint)
       end
 
       def rails_config
