@@ -38,7 +38,6 @@ module Skylight
     def start(name, id, payload)
       return if @instrumenter.disabled?
       return unless trace = @instrumenter.current_trace
-      trace = "test"
       cat, title, desc, annot = normalize(trace, name, payload)
 
       if cat != :skip && error = annot.delete(:skylight_error)

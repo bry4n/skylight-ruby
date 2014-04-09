@@ -1,4 +1,3 @@
-require 'debugger'
 module Skylight
   module Normalizers
     class ProcessAction < Normalizer

@@ -2,7 +2,6 @@ require 'thread'
 require 'set'
 require 'base64'
 require 'strscan'
-require 'debugger'
 
 module Skylight
   class Instrumenter
