@@ -11,6 +11,7 @@ module Skylight
         unless excluded?(endpoint)
           [ CAT, trace.endpoint, nil, normalize_payload(payload) ]
         else
+          puts endpoint
           :skip
         end
       end
