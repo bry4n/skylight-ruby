@@ -18,45 +18,33 @@ module Skylight
       class FetchError < StandardError; end
 
       def self.fetch(opts = {})
-        platform = Gem::Platform.local
-
         fetcher = new(
           BASE_URL,
           opts[:target],
           opts[:version],
-          opts[:checksums],
-          opts[:cpu] || platform.cpu,
-          opts[:os] || platform.os,
+          opts[:checksum],
+          opts[:arch],
           opts[:required],
           opts[:logger] || Logger.new(STDOUT))
 
         fetcher.fetch
       end
 
-      def initialize(source, target, version, checksums, cpu, os, required, log)
+      def initialize(source, target, version, checksum, arch, required, log)
         raise "source required" unless source
-        raise "checksums required" unless checksums
-        raise "cpu required" unless cpu
-        raise "os required" unless os
+        raise "checksum required" unless checksum
+        raise "arch required" unless arch
 
         @source = source
         @target = target
         @version = version
-        @checksums = checksums
+        @checksum = checksum
         @required = required
-        @arch = "#{os}-#{cpu}"
+        @arch = arch
         @log = log
       end
 
       def fetch
-        # Ensure that the requested arch is valid
-        unless @checksums[@arch]
-          maybe_raise "no checksum entry for requested architecture -- " \
-            "this probably means the requested architecture is not supported; " \
-            "arch=#{@arch}; available=#{@checksums.keys}"
-          return
-        end
-
         log "fetching native ext; curr-platform=#{Gem::Platform.local.to_s}; " \
           "requested-arch=#{@arch}; version=#{@version}"
 
@@ -81,8 +69,15 @@ module Skylight
         archive
       end
 
-      def self.http_get(host, port, use_ssl, path)
-        Net::HTTP.start(host, port, use_ssl: use_ssl) do |http|
+      def http_get(host, port, use_ssl, path)
+        if http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy']
+          log "connecting with proxy: #{http_proxy}"
+          uri = URI.parse(http_proxy)
+          p_host, p_port = uri.host, uri.port
+          p_user, p_pass = uri.userinfo.split(/:/) if uri.userinfo
+        end
+
+        Net::HTTP.start(host, port, p_host, p_port, p_user, p_pass, use_ssl: use_ssl) do |http|
           case response = http.get(path)
           when Net::HTTPSuccess
             return [ :success, response.body ]
@@ -107,7 +102,7 @@ module Skylight
           begin
             host, port, use_ssl, path = deconstruct_uri(uri)
 
-            status, body = NativeExtFetcher.http_get(host, port, use_ssl, path)
+            status, body = http_get(host, port, use_ssl, path)
 
             case status
             when :success
@@ -130,7 +125,7 @@ module Skylight
           rescue => e
             remaining_attempts -= 1
 
-            log "failed to fetch native extension; uri=#{uri}; msg=#{e.message}; remaining-attempts=#{remaining_attempts}", e
+            error "failed to fetch native extension; uri=#{uri}; msg=#{e.message}; remaining-attempts=#{remaining_attempts}", e
 
             if remaining_attempts > 0
               sleep 2
@@ -146,11 +141,7 @@ module Skylight
       end
 
       def verify_checksum(archive)
-        unless expected = @checksums[@arch]
-          log "no checksum provided; arch=#{@arch}"
-          return false
-        end
-
+        expected = @checksum
         actual = Digest::SHA2.hexdigest(archive)
 
         unless expected == actual
@@ -178,17 +169,22 @@ module Skylight
       end
 
       def maybe_raise(err)
-        log err
+        error err
 
         if @required
           raise err
         end
       end
 
-      def log(msg, e = nil)
+      def log(msg)
+        msg = "[SKYLIGHT] #{msg}"
+        @log.info msg
+      end
+
+      def error(msg, e=nil)
         msg = "[SKYLIGHT] #{msg}"
         msg << "\n#{e.backtrace.join("\n")}" if e
-        @log.info msg
+        @log.error msg
       end
     end
   end

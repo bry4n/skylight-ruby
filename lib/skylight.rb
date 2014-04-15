@@ -3,10 +3,16 @@ require 'socket'
 require 'skylight/version'
 
 module Skylight
+  # @api private
   TRACE_ENV_KEY      = 'SKYLIGHT_ENABLE_TRACE_LOGS'.freeze
+
+  # @api private
   STANDALONE_ENV_KEY = 'SKYLIGHT_STANDALONE'.freeze
+
+  # @api private
   STANDALONE_ENV_VAL = 'server'.freeze
 
+  # @api private
   # Whether or not the native extension is present
   @@has_native_ext = false
 
@@ -29,39 +35,41 @@ module Skylight
     raise if ENV.key?("SKYLIGHT_REQUIRED")
   end
 
-  autoload :Api,          'skylight/api'
-  autoload :CLI,          'skylight/cli'
-  autoload :Config,       'skylight/config'
-  autoload :Helpers,      'skylight/helpers'
-
-  module Util
-    autoload :Logging,       'skylight/util/logging'
-    autoload :HTTP,          'skylight/util/http'
-  end
-
-  # ==== Exceptions ====
-  class IpcProtoError    < RuntimeError; end
-  class WorkerStateError < RuntimeError; end
-  class ConfigError      < RuntimeError; end
-  class TraceError       < RuntimeError; end
-  class SerializeError   < RuntimeError; end
-
   if defined?(Rails)
     require 'skylight/railtie'
   end
 
+  # @api private
+  def self.check_install_errors
+    # Note: An unsupported arch doesn't count as an error.
+    install_log = File.expand_path("../../ext/install.log", __FILE__)
+
+    if File.exist?(install_log) && File.read(install_log) =~ /ERROR/
+      puts "[SKYLIGHT] [#{Skylight::VERSION}] The Skylight native extension failed to install. " \
+              "Please check #{install_log} and notify support@skylight.io." \
+              "The missing extension will not affect the functioning of your application."
+    end
+  end
+
+  # @api private
   def self.warn_skylight_native_missing
     # TODO: Dumping the error messages this way is pretty hacky
     is_rails = defined?(Rails)
     env_name = is_rails ? Rails.env : "development"
 
     if env_name == "development" || env_name == "test"
-      puts "[SKYLIGHT] [#{Skylight::VERSION}] Running Skylight in #{env_name} mode. No data will be reported until you deploy your app."
+      puts "[SKYLIGHT] [#{Skylight::VERSION}] Running Skylight in #{env_name} mode. " \
+              "No data will be reported until you deploy your app."
     else
-      puts "[SKYLIGHT] [#{Skylight::VERSION}] The Skylight native extension for your platform wasn't found. We currently support monitoring in 32- and 64-bit Linux only. If you are on a supported platform, please contact support at support@skylight.io. The missing extension will not affect the functioning of your application."
+      puts "[SKYLIGHT] [#{Skylight::VERSION}] The Skylight native extension for your platform wasn't found. " \
+              "The monitoring portion of Skylight is only supported on production servers running 32- or " \
+              "64-bit Linux. The missing extension will not affect the functioning of your application " \
+              "and you can continue local development without data being reported. If you are on a " \
+              "supported platform, please contact support at support@skylight.io."
     end
   end
 
+  # @api private
   def self.daemon?
     ENV[STANDALONE_ENV_KEY] == STANDALONE_ENV_VAL
   end
@@ -74,38 +82,41 @@ module Skylight
     require 'skylight/vm/gc'
   end
 
+  autoload :Api,          'skylight/api'
+  autoload :CLI,          'skylight/cli'
+  autoload :Config,       'skylight/config'
+  autoload :Helpers,      'skylight/helpers'
+  autoload :Formatters,   'skylight/formatters'
   autoload :GC,           'skylight/gc'
   autoload :Instrumenter, 'skylight/instrumenter'
   autoload :Messages,     'skylight/messages'
+  autoload :Metrics,      'skylight/metrics'
   autoload :Middleware,   'skylight/middleware'
   autoload :Normalizers,  'skylight/normalizers'
   autoload :Subscriber,   'skylight/subscriber'
   autoload :Worker,       'skylight/worker'
 
-  module Metrics
-    autoload :Meter,           'skylight/metrics/meter'
-    autoload :EWMA,            'skylight/metrics/ewma'
-    autoload :ProcessMemGauge, 'skylight/metrics/process_mem_gauge'
-    autoload :ProcessCpuGauge, 'skylight/metrics/process_cpu_gauge'
-  end
+  # Skylight::Util is defined by the native ext so we can't autoload
+  require 'skylight/util'
 
-  module Util
-    require 'skylight/util/clock'
+  # ==== Exceptions ====
 
-    autoload :Conversions,   'skylight/util/conversions'
-    autoload :Gzip,          'skylight/util/gzip'
-    autoload :HTTP,          'skylight/util/http'
-    autoload :Inflector,     'skylight/util/inflector'
-    autoload :Logging,       'skylight/util/logging'
-    autoload :Queue,         'skylight/util/queue'
-    autoload :Task,          'skylight/util/task'
-    autoload :UniformSample, 'skylight/util/uniform_sample'
-  end
+  # @api private
+  class IpcProtoError    < RuntimeError; end
 
-  module Formatters
-    autoload :HTTP, 'skylight/formatters/http'
-  end
+  # @api private
+  class WorkerStateError < RuntimeError; end
 
+  # @api private
+  class ConfigError      < RuntimeError; end
+
+  # @api private
+  class TraceError       < RuntimeError; end
+
+  # @api private
+  class SerializeError   < RuntimeError; end
+
+  # @api private
   TIERS = %w(
     api
     app
@@ -114,25 +125,29 @@ module Skylight
     noise
     other)
 
+  # @api private
   TIER_REGEX = /^(?:#{TIERS.join('|')})(?:\.|$)/u
+
+  # @api private
   CATEGORY_REGEX = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/iu
+
+  # @api private
   DEFAULT_CATEGORY = "app.block".freeze
+
+  # @api private
   DEFAULT_OPTIONS = { category: DEFAULT_CATEGORY }
 
-  #
-  #
-  # ===== Public API =====
-  #
-  #
-
+  # Start instrumenting
   def self.start!(*args)
     Instrumenter.start!(*args)
   end
 
+  # Stop instrumenting
   def self.stop!(*args)
     Instrumenter.stop!(*args)
   end
 
+  # Start a trace
   def self.trace(endpoint=nil, cat=nil, title=nil)
     unless inst = Instrumenter.instance
       return yield if block_given?
@@ -146,11 +161,13 @@ module Skylight
     end
   end
 
+  # End a trace
   def self.done(span)
     return unless inst = Instrumenter.instance
     inst.done(span)
   end
 
+  # Instrument
   def self.instrument(opts = DEFAULT_OPTIONS)
     unless inst = Instrumenter.instance
       return yield if block_given?
@@ -176,6 +193,7 @@ module Skylight
     end
   end
 
+  # Temporarily disable
   def self.disable
     unless inst = Instrumenter.instance
       return yield if block_given?
@@ -185,6 +203,7 @@ module Skylight
     inst.disable { yield }
   end
 
+  # @api private
   RUBYBIN = File.join(
     RbConfig::CONFIG['bindir'],
     "#{RbConfig::CONFIG['ruby_install_name']}#{RbConfig::CONFIG['EXEEXT']}")
@@ -194,3 +213,7 @@ module Skylight
 
   require 'skylight/probes'
 end
+
+# Warn as soon as possible if there was an error installing Skylight.
+# We do this here since we can't report these issues via Gem install without stopping install entirely.
+Skylight.check_install_errors

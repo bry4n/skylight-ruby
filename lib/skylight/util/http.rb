@@ -22,15 +22,28 @@ module Skylight
       attr_accessor :authentication, :config
       attr_reader :host, :port
 
+      class StartError < StandardError; end
+      class ReadResponseError < StandardError; end
+
       def initialize(config, service = :report)
         @config = config
         @ssl  = config["#{service}.ssl"]
         @host = config["#{service}.host"]
         @port = config["#{service}.port"]
+
         @proxy_addr = config["#{service}.proxy_addr"]
         @proxy_port = config["#{service}.proxy_port"]
         @proxy_user = config["#{service}.proxy_user"]
         @proxy_pass = config["#{service}.proxy_pass"]
+
+        unless @proxy_addr
+          if http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy']
+            uri = URI.parse(http_proxy)
+            @proxy_addr, @proxy_port = uri.host, uri.port
+            @proxy_user, @proxy_pass = (uri.userinfo || '').split(/:/)
+          end
+        end
+
         @deflate = config["#{service}.deflate"]
         @authentication = config[:'authentication']
       end
@@ -83,6 +96,25 @@ module Skylight
         type.new(endpoint, headers)
       end
 
+      def do_request(http, req)
+        begin
+          client = http.start
+        rescue => e
+          # TODO: Retry here
+          raise StartError, e.inspect
+        end
+
+        begin
+          res = client.request(req)
+        rescue Net::ReadTimeout, Timeout::Error, EOFError => e
+          raise ReadResponseError, e.inspect
+        end
+
+        yield res
+      ensure
+        client.finish if client
+      end
+
       def execute(req, body=nil)
         t { fmt "executing HTTP request; host=%s; port=%s; path=%s, body=%s",
               @host, @port, req.path, body && body.bytesize }
@@ -104,9 +136,7 @@ module Skylight
           http.verify_mode = OpenSSL::SSL::VERIFY_PEER
         end
 
-        http.start do |client|
-          res = client.request(req)
-
+        do_request(http, req) do |res|
           unless res.code =~ /2\d\d/
             debug "server responded with #{res.code}"
             t { fmt "body=%s", res.body }

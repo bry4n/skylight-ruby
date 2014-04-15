@@ -3,6 +3,7 @@ require 'rails'
 require 'skylight/rails/action_controller'
 
 module Skylight
+  # @api private
   class Railtie < Rails::Railtie
     config.skylight = ActiveSupport::OrderedOptions.new
 
@@ -56,7 +57,7 @@ module Skylight
 
       configure_logging(config, app)
 
-      config['agent.sockfile_path'] = tmp
+      config['agent.sockfile_path'] ||= tmp
       config['normalizers.render.view_paths'] = existent_paths(app.config.paths["app/views"]) + [Rails.root.to_s]
       config.validate!
       config

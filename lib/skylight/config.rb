@@ -6,6 +6,7 @@ require 'socket'
 
 module Skylight
   class Config
+    # @api private
     MUTEX = Mutex.new
 
     def self.default_hostname
@@ -36,10 +37,18 @@ module Skylight
       'REPORT_PORT'             => :'report.port',
       'REPORT_SSL'              => :'report.ssl',
       'REPORT_DEFLATE'          => :'report.deflate',
+      'REPORT_PROXY_ADDR'       => :'report.proxy_addr',
+      'REPORT_PROXY_PORT'       => :'report.proxy_port',
+      'REPORT_PROXY_USER'       => :'report.proxy_user',
+      'REPORT_PROXY_PASS'       => :'report.proxy_user',
       'ACCOUNTS_HOST'           => :'accounts.host',
       'ACCOUNTS_PORT'           => :'accounts.port',
       'ACCOUNTS_SSL'            => :'accounts.ssl',
       'ACCOUNTS_DEFLATE'        => :'accounts.deflate',
+      'ACCOUNTS_PROXY_ADDR'     => :'accounts.proxy_addr',
+      'ACCOUNTS_PROXY_PORT'     => :'accounts.proxy_port',
+      'ACCOUNTS_PROXY_USER'     => :'accounts.proxy_user',
+      'ACCOUNTS_PROXY_PASS'     => :'accounts.proxy_user',
       'ME_AUTHENTICATION'       => :'me.authentication',
       'ME_CREDENTIALS_PATH'     => :'me.credentials_path',
       'METRICS_REPORT_INTERVAL' => :'metrics.report_interval',
@@ -102,6 +111,7 @@ module Skylight
       self.load(nil, nil, env)
     end
 
+    # @api private
     def self.remap_env(env)
       ret = {}
 
@@ -125,8 +135,10 @@ module Skylight
       ret
     end
 
+    # @api private
     attr_reader :environment
 
+    # @api private
     def initialize(*args)
       attrs = {}
 
@@ -155,10 +167,12 @@ module Skylight
       end
     end
 
+    # @api private
     def skip_validation?
       !!get(:skip_validation)
     end
 
+    # @api private
     def validate!
       return true if skip_validation?
 
@@ -171,6 +185,7 @@ module Skylight
       true
     end
 
+    # @api private
     def validate_token
       return :ok if skip_validation?
 
@@ -255,12 +270,6 @@ module Skylight
       ret
     end
 
-    #
-    #
-    # ===== Writing =====
-    #
-    #
-
     def write(path)
       FileUtils.mkdir_p(File.dirname(path))
 
@@ -290,18 +299,22 @@ authentication: #{self[:authentication]}
       get('rails_app')
     end
 
+    # @api private
     def worker
       Worker::Builder.new(self)
     end
 
+    # @api private
     def gc
       @gc ||= GC.new(self, get('gc.profiler', VM::GC.new))
     end
 
+    # @api private
     def constant_flush?
       get('test.constant_flush')
     end
 
+    # @api private
     def ignore_token?
       get('test.ignore_token')
     end
